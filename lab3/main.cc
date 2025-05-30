@@ -1,3 +1,4 @@
+//代码中有许多版本，最终使用的是pthread版本和openMP2版本作为最终的作业
 //ivf+hnsw
 // #include <iostream>
 // #include <fstream>
@@ -885,7 +886,7 @@
 //             file.read(reinterpret_cast<char*>(inverted_lists[i].data()), size * sizeof(uint32_t));
 //         }
 //         file.close();
-//         nprobe = 32;
+//         nprobe = 16;
 //     }
 
 //     vector<int> search_clusters(const float* query, int num_threads) {
@@ -978,12 +979,11 @@
 //     float* base = LoadData<float>(data_path + "DEEP100K.base.100k.fbin", base_number, vecdim);
 
 //     const size_t k = 10;
-//     vector<size_t> rerank_values = {20};
+//     vector<size_t> rerank_values = {3200};
     
-//     // 自动检测CPU核心数，上限16个线程
-//     unsigned int num_cores = thread::hardware_concurrency();
-//     int num_threads = (num_cores > 0) ? min(16, (int)num_cores) : 1;
-//     cout << "Detected " << num_cores << " CPU cores, using " << num_threads << " thread(s)" << endl;
+//     int num_threads = 8;  // 直接修改这个值即可调整线程数
+    
+//     cout << "Using " << num_threads << " threads" << endl;
 
 //     auto codebooks = read_codebooks("files/codebooks.bin");
 //     auto pq_codes_pair = load_pq_codes("files/pq_codes.bin");
@@ -1126,7 +1126,7 @@
 
 
 
-//openMP1
+//openMP1(非最终版本)
 // #include <iostream>
 // #include <fstream>
 // #include <vector>
@@ -1492,6 +1492,7 @@
 #include <set>
 #include <arm_neon.h>
 #include <omp.h>
+#include <cstdlib> // 添加头文件用于命令行参数解析
 
 using namespace std;
 
@@ -1571,7 +1572,7 @@ struct IVFIndex {
     void parallel_process_clusters(const float* query, vector<int>& selected_clusters, int num_threads) {
         vector<pair<float, int>> all_distances(nlist);
         
-        #pragma omp parallel for num_threads(num_threads) schedule(dynamic, 100)
+        #pragma omp parallel for schedule(dynamic, 100)
         for (int cid = 0; cid < nlist; ++cid) {
             float dist_sq = 0.0f;
             for (int d = 0; d < dim; ++d) {
@@ -1597,7 +1598,7 @@ struct IVFIndex {
         candidates.reserve(total_size);
 
         vector<vector<uint32_t>> local_candidates(num_threads);
-        #pragma omp parallel for num_threads(num_threads) schedule(static)
+        #pragma omp parallel for schedule(static)
         for (size_t i = 0; i < clusters.size(); ++i) {
             int thread_id = omp_get_thread_num();
             int cid = clusters[i];
@@ -1677,7 +1678,38 @@ T* LoadData(const std::string& data_path, size_t& n, size_t& d) {
     return data;
 }
 
-int main() {
+int main(int argc, char* argv[]) {
+    // 默认线程数
+    // ===================== 在这里直接设置线程数 =====================
+    int num_threads = 8;  // 直接修改这个值即可调整线程数
+    
+    // 设置OpenMP线程数
+    omp_set_num_threads(num_threads);
+    cout << "Using " << num_threads << " threads" << endl;
+    
+    // 解析命令行参数
+    for (int i = 1; i < argc; ++i) {
+        string arg = argv[i];
+        if ((arg == "-t" || arg == "--threads") && i + 1 < argc) {
+            num_threads = atoi(argv[++i]);
+            if (num_threads <= 0) {
+                cerr << "Invalid thread count: " << num_threads << ". Using default." << endl;
+                num_threads = min(omp_get_max_threads(), 16);
+            }
+        }
+        else if (arg == "-h" || arg == "--help") {
+            cout << "Usage: " << argv[0] << " [options]\n"
+                 << "Options:\n"
+                 << "  -t, --threads N   Set number of threads (default: min(cores, 16))\n"
+                 << "  -h, --help        Show this help message\n";
+            return 0;
+        }
+    }
+
+    // 设置OpenMP线程数
+    omp_set_num_threads(num_threads);
+    cout << "Using " << num_threads << " threads" << endl;
+
     size_t test_number = 0, base_number = 0, test_gt_d = 0, vecdim = 0;
     string data_path = "/anndata/";
 
@@ -1688,10 +1720,6 @@ int main() {
     const size_t k = 10;
     vector<size_t> rerank_values = {1100};
     
-    int num_threads = omp_get_max_threads();
-    num_threads = min(num_threads, 16);
-    cout << "Using " << num_threads << " threads" << endl;
-
     auto codebooks = read_codebooks("files/codebooks.bin");
     auto pq_codes_pair = load_pq_codes("files/pq_codes.bin");
     auto cluster_products = read_cluster_products("files/cluster_products.bin");
@@ -1712,7 +1740,7 @@ int main() {
         const size_t MAX_QUERIES = 2000;
         const size_t actual_queries = min(MAX_QUERIES, test_number);
 
-        #pragma omp parallel for num_threads(num_threads) schedule(dynamic, 50)
+        #pragma omp parallel for schedule(dynamic, 50)
         for (size_t query_idx = 0; query_idx < actual_queries; ++query_idx) {
             int thread_id = omp_get_thread_num();
             struct timeval start, end;
