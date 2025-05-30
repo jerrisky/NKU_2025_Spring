@@ -979,9 +979,9 @@
 //     float* base = LoadData<float>(data_path + "DEEP100K.base.100k.fbin", base_number, vecdim);
 
 //     const size_t k = 10;
-//     vector<size_t> rerank_values = {3200};
+//     vector<size_t> rerank_values = {1100};
     
-//     int num_threads = 8;  // 直接修改这个值即可调整线程数
+//     int num_threads = 1;  // 直接修改这个值即可调整线程数
     
 //     cout << "Using " << num_threads << " threads" << endl;
 
@@ -1681,31 +1681,12 @@ T* LoadData(const std::string& data_path, size_t& n, size_t& d) {
 int main(int argc, char* argv[]) {
     // 默认线程数
     // ===================== 在这里直接设置线程数 =====================
-    int num_threads = 8;  // 直接修改这个值即可调整线程数
+    int num_threads = 1;  // 直接修改这个值即可调整线程数
     
     // 设置OpenMP线程数
     omp_set_num_threads(num_threads);
     cout << "Using " << num_threads << " threads" << endl;
     
-    // 解析命令行参数
-    for (int i = 1; i < argc; ++i) {
-        string arg = argv[i];
-        if ((arg == "-t" || arg == "--threads") && i + 1 < argc) {
-            num_threads = atoi(argv[++i]);
-            if (num_threads <= 0) {
-                cerr << "Invalid thread count: " << num_threads << ". Using default." << endl;
-                num_threads = min(omp_get_max_threads(), 16);
-            }
-        }
-        else if (arg == "-h" || arg == "--help") {
-            cout << "Usage: " << argv[0] << " [options]\n"
-                 << "Options:\n"
-                 << "  -t, --threads N   Set number of threads (default: min(cores, 16))\n"
-                 << "  -h, --help        Show this help message\n";
-            return 0;
-        }
-    }
-
     // 设置OpenMP线程数
     omp_set_num_threads(num_threads);
     cout << "Using " << num_threads << " threads" << endl;
